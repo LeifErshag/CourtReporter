@@ -5,6 +5,11 @@
 
 const STORAGE_KEY = "courtReporter.draft.v1";
 const AWARDS_KEY = "courtReporter.awards.v1";
+const SETTINGS_KEY = "courtReporter.settings.v1";
+
+const OP_SEARCH_URL = "https://op.drachenwald.sca.org/search";
+
+let settings = { verifyNames: false };
 
 const FORM_FIELD_LABELS = {
   report: "Report Summary",
@@ -56,8 +61,9 @@ function formatAll(entries) {
 // ---------- Persistence ----------
 
 async function loadState() {
-  const stored = await chrome.storage.local.get([STORAGE_KEY, AWARDS_KEY]);
+  const stored = await chrome.storage.local.get([STORAGE_KEY, AWARDS_KEY, SETTINGS_KEY]);
   if (stored[STORAGE_KEY]) state = { ...blankState(), ...stored[STORAGE_KEY] };
+  if (stored[SETTINGS_KEY]) settings = { ...settings, ...stored[SETTINGS_KEY] };
   if (stored[AWARDS_KEY]) {
     awards = stored[AWARDS_KEY].awards || [];
   } else {
@@ -76,8 +82,20 @@ let saveTimer = null;
 function saveState() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    chrome.storage.local.set({ [STORAGE_KEY]: state });
+    chrome.storage.local.set({ [STORAGE_KEY]: stripVerification(state) });
   }, 200);
+}
+
+function stripVerification(s) {
+  const clone = { ...s, report: [], secret: [] };
+  for (const tab of ["report", "secret"]) {
+    clone[tab] = (s[tab] || []).map(({ _verify, ...rest }) => rest);
+  }
+  return clone;
+}
+
+function saveSettings() {
+  chrome.storage.local.set({ [SETTINGS_KEY]: settings });
 }
 
 // ---------- Render ----------
@@ -115,6 +133,10 @@ function renderEntries() {
       const field = t.dataset.field;
       if (!field) return;
       entries[idx][field] = t.value;
+      if (field === "sca" || field === "mundane") {
+        entries[idx]._verify = null;
+        renderVerification(node, null);
+      }
       $(".entry-preview", node).textContent = formatEntry(entries[idx]);
       updateOutput();
       saveState();
@@ -152,8 +174,147 @@ function renderEntries() {
     });
 
     $(".entry-preview", node).textContent = formatEntry(entry);
+
+    const verifyBtn = $(".verify-btn", node);
+    verifyBtn.addEventListener("click", () => verifyEntry(idx, node));
+
+    // Re-render any cached verification result so it survives re-renders.
+    renderVerification(node, entry._verify);
+
     container.appendChild(node);
   });
+}
+
+function renderVerification(node, v) {
+  const scaB = node.querySelector('[data-badge="sca"]');
+  const munB = node.querySelector('[data-badge="mundane"]');
+  const sumB = node.querySelector('[data-badge="match"]');
+  const setBadge = (el, kind, text, title) => {
+    el.className = "verify-badge" + (kind ? " " + kind : "");
+    el.textContent = text || "";
+    if (title) el.title = title;
+  };
+  setBadge(scaB, "", "");
+  setBadge(munB, "", "");
+  sumB.className = "verify-summary";
+  sumB.textContent = "";
+  if (!v) return;
+  if (v.loading) {
+    setBadge(scaB, "loading", "…", "Searching OP…");
+    setBadge(munB, "loading", "…", "Searching OP…");
+    sumB.textContent = "Verifying…";
+    return;
+  }
+  if (v.error) {
+    sumB.className = "verify-summary no";
+    sumB.textContent = "Verify failed: " + v.error;
+    return;
+  }
+  if (v.sca) {
+    if (v.sca.found) setBadge(scaB, "ok", "✓", "SCA Name Found");
+    else setBadge(scaB, "no", "?", "Not found on OP");
+  }
+  if (v.mundane) {
+    if (v.mundane.found) setBadge(munB, "ok", "✓", "Modern Name Found");
+    else setBadge(munB, "no", "?", "Not found on OP");
+  }
+  if (v.match === true) {
+    sumB.className = "verify-summary ok";
+    sumB.textContent = "✓✓ The results for SCA and modern name matches";
+  } else if (v.sca && v.sca.found && v.mundane && v.mundane.found && v.match === false) {
+    sumB.className = "verify-summary no";
+    sumB.textContent = "Names found but no shared record on OP";
+  } else if (v.sca && v.sca.found && (!v.mundane || !v.mundane.checked)) {
+    sumB.className = "verify-summary ok";
+    sumB.textContent = "SCA Name Found";
+  } else if (v.mundane && v.mundane.found && (!v.sca || !v.sca.checked)) {
+    sumB.className = "verify-summary ok";
+    sumB.textContent = "Modern Name Found";
+  }
+}
+
+async function verifyEntry(idx, node) {
+  const entry = state[state.activeTab][idx];
+  if (!entry) return;
+  const sca = (entry.sca || "").trim();
+  const mundane = (entry.mundane || "").trim();
+  if (!sca && !mundane) {
+    setStatus("Enter a name to verify.", "err");
+    return;
+  }
+  if (!settings.verifyNames) {
+    if (!confirm(
+      "Name verification will send the names you entered to op.drachenwald.sca.org/search. " +
+      "Enable this feature for the rest of this session?"
+    )) return;
+    settings.verifyNames = true;
+    $("#verify-names").checked = true;
+    saveSettings();
+  }
+
+  entry._verify = { loading: true };
+  renderVerification(node, entry._verify);
+
+  try {
+    const [scaRes, munRes] = await Promise.all([
+      sca ? opSearch(sca) : Promise.resolve(null),
+      mundane ? opSearch(mundane) : Promise.resolve(null)
+    ]);
+    const v = {
+      sca: scaRes ? { checked: true, found: scaRes.records.some((r) => containsName(r, sca)), records: scaRes.records } : null,
+      mundane: munRes ? { checked: true, found: munRes.records.some((r) => containsName(r, mundane)), records: munRes.records } : null
+    };
+    if (sca && mundane && scaRes && munRes) {
+      // True if any record from either search contains BOTH the SCA name and
+      // the modern name in the same row/snippet — indicates same person.
+      const all = [...scaRes.records, ...munRes.records];
+      v.match = all.some((r) => containsName(r, sca) && containsName(r, mundane));
+    }
+    entry._verify = v;
+  } catch (err) {
+    entry._verify = { error: err.message || String(err) };
+  }
+  renderVerification(node, entry._verify);
+}
+
+function containsName(text, name) {
+  if (!name) return false;
+  return text.toLowerCase().includes(name.toLowerCase());
+}
+
+async function opSearch(query) {
+  // The OP search page accepts a query string. We try `?q=` first and fall
+  // back to `?query=` and `?name=` if the response looks empty.
+  const variants = ["q", "query", "name"];
+  let lastHtml = null;
+  for (const param of variants) {
+    const url = `${OP_SEARCH_URL}?${param}=${encodeURIComponent(query)}`;
+    const res = await fetch(url, { credentials: "omit" });
+    if (!res.ok) continue;
+    const html = await res.text();
+    lastHtml = html;
+    const records = parseSearchResults(html, query);
+    if (records.length > 0) return { records, url };
+  }
+  return { records: lastHtml ? parseSearchResults(lastHtml, query) : [], url: null };
+}
+
+function parseSearchResults(html, query) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const out = [];
+  const seen = new Set();
+  // Collect text snippets from likely result elements: table rows, list items,
+  // articles. Keep ones that mention the query (case-insensitive).
+  const candidates = doc.querySelectorAll("tr, li, article, .result, .person, .entry, dd");
+  for (const el of candidates) {
+    const t = (el.textContent || "").trim().replace(/\s+/g, " ");
+    if (!t || t.length < 3 || t.length > 600) continue;
+    if (!t.toLowerCase().includes(query.toLowerCase())) continue;
+    if (seen.has(t)) continue;
+    seen.add(t);
+    out.push(t);
+  }
+  return out;
 }
 
 function updateOutput() {
@@ -309,6 +470,13 @@ async function init() {
 
   $("#insert").addEventListener("click", insertIntoForm);
   $("#refresh-awards").addEventListener("click", refreshAwards);
+
+  const verifyToggle = $("#verify-names");
+  verifyToggle.checked = !!settings.verifyNames;
+  verifyToggle.addEventListener("change", () => {
+    settings.verifyNames = verifyToggle.checked;
+    saveSettings();
+  });
 
   $("#open-op-search").addEventListener("click", () => {
     chrome.tabs.create({ url: "https://op.drachenwald.sca.org/search" });

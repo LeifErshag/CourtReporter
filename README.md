@@ -18,6 +18,11 @@ SCA Name (Mundane Name): Award, scroll status (scroll maker), token status (toke
 - Add / remove / reorder recipients.
 - Award name autocomplete from a bundled list, refreshable from the public
   [Drachenwald OP awards page](https://op.drachenwald.sca.org/awards).
+- Optional name verification (opt-in toggle): per-entry "Verify names" button
+  that queries [op.drachenwald.sca.org/search](https://op.drachenwald.sca.org/search)
+  and shows badges ("SCA Name Found", "Modern Name Found") plus a "✓✓ The
+  results for SCA and modern name matches" indicator when both names appear
+  together in the same OP record.
 - One-click "Insert into form" that writes the formatted text into the matching
   textarea on the active Google Forms tab (uses a React-compatible value setter
   so Forms validation actually picks the value up).
@@ -40,9 +45,17 @@ or any other personal data anywhere. Specifically:
   `https://op.drachenwald.sca.org/awards`. This request contains no personal
   data — it just downloads the public award list.
 - "Open OP name search" opens
-  `https://op.drachenwald.sca.org/search` in a new tab. Spell-checking names
-  there is a manual step you perform yourself; the extension never sends names
-  on your behalf.
+  `https://op.drachenwald.sca.org/search` in a new tab so you can verify
+  spelling manually.
+- **"Verify names via OP search"** is an opt-in toggle (off by default). When
+  it is enabled and you click the per-entry **Verify names** button, the SCA
+  name and mundane name for that entry are sent as query parameters to
+  `https://op.drachenwald.sca.org/search` in order to confirm spelling. The
+  result is shown as small badges next to each field ("SCA Name Found",
+  "Modern Name Found") and, if both names appear together in a single OP
+  record, a combined "✓✓ The results for SCA and modern name matches"
+  indicator on the entry. Verification results are kept only in memory; they
+  are stripped before the draft is written to local storage.
 - "Clear draft" removes the locally stored draft.
 
 The extension requests these Chrome permissions:

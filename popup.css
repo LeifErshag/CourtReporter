@@ -123,6 +123,45 @@ fieldset {
 }
 fieldset legend { font-size: 11px; color: var(--muted); padding: 0 4px; }
 
+.name-row { display: flex; gap: 4px; align-items: center; }
+.name-row input { flex: 1; min-width: 0; }
+
+.verify-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 600;
+  background: transparent;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.verify-badge.ok { background: #d6ecd6; color: #1f5a1f; }
+.verify-badge.no { background: #f3d6d6; color: #7a1f1f; }
+.verify-badge.loading { background: #eee2c2; color: #6b5210; }
+
+.verify-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.verify-btn { padding: 3px 8px; font-size: 11px; }
+.verify-summary { font-size: 11px; color: var(--muted); }
+.verify-summary.ok { color: #1f5a1f; font-weight: 600; }
+.verify-summary.no { color: #7a1f1f; }
+
+.inline-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
 .entry-preview {
   margin: 6px 0 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

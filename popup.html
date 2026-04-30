@@ -42,11 +42,19 @@
           <button id="open-op-search">Open OP name search</button>
           <button id="clear-draft" class="danger">Clear draft</button>
         </div>
+        <div class="row">
+          <label class="inline-check">
+            <input type="checkbox" id="verify-names" />
+            Verify names via OP search
+          </label>
+        </div>
         <p class="muted">
           Awards are fetched from
           <a href="https://op.drachenwald.sca.org/awards" target="_blank" rel="noopener">op.drachenwald.sca.org</a>
-          on demand. Names are never sent anywhere &mdash; the OP search button just opens the public search
-          page in a new tab so you can verify spelling yourself. Drafts are stored locally on this device only.
+          on demand. When &ldquo;Verify names via OP search&rdquo; is enabled, the SCA and mundane names you
+          enter are sent to <a href="https://op.drachenwald.sca.org/search" target="_blank" rel="noopener">op.drachenwald.sca.org/search</a>
+          to confirm spelling. Disable the toggle to keep names off the network entirely. Drafts are stored
+          locally on this device only.
         </p>
       </details>
       <details>
@@ -71,10 +79,16 @@
         </header>
         <div class="grid">
           <label>SCA name
-            <input type="text" data-field="sca" autocomplete="off" />
+            <span class="name-row">
+              <input type="text" data-field="sca" autocomplete="off" />
+              <span class="verify-badge" data-badge="sca" title="Click Verify to check this name" aria-live="polite"></span>
+            </span>
           </label>
           <label>Mundane name <span class="muted">(optional)</span>
-            <input type="text" data-field="mundane" autocomplete="off" />
+            <span class="name-row">
+              <input type="text" data-field="mundane" autocomplete="off" />
+              <span class="verify-badge" data-badge="mundane" title="Click Verify to check this name" aria-live="polite"></span>
+            </span>
           </label>
           <label class="full">Award
             <input type="text" data-field="award" list="awards-list" autocomplete="off" />
@@ -101,6 +115,10 @@
           </fieldset>
         </div>
         <p class="entry-preview muted"></p>
+        <div class="verify-row">
+          <button class="verify-btn" type="button" title="Verify both names via op.drachenwald.sca.org/search">Verify names</button>
+          <span class="verify-summary" data-badge="match" aria-live="polite"></span>
+        </div>
       </article>
     </template>
 
