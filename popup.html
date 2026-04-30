@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Drachenwald Court Reporter</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Drachenwald Court Reporter</h1>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="report" role="tab">Report Summary</button>
+        <button class="tab" data-tab="secret" role="tab">Secret Awards</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="entries" aria-label="Court entries"></section>
+
+      <div class="row">
+        <button id="add-entry" class="primary">+ Add recipient</button>
+      </div>
+
+      <section class="output-block">
+        <label for="output">Generated report (auto-updated)</label>
+        <textarea id="output" rows="6" readonly spellcheck="false"></textarea>
+        <div class="row">
+          <button id="copy">Copy</button>
+          <button id="insert" class="primary" title="Insert into the matching field on the active Google Forms tab">
+            Insert into form
+          </button>
+          <span id="status" class="status" aria-live="polite"></span>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <details>
+        <summary>Tools &amp; data</summary>
+        <div class="row">
+          <button id="refresh-awards">Refresh awards list</button>
+          <button id="open-op-search">Open OP name search</button>
+          <button id="clear-draft" class="danger">Clear draft</button>
+        </div>
+        <div class="row">
+          <label class="inline-check">
+            <input type="checkbox" id="verify-names" />
+            Verify names via OP search
+          </label>
+        </div>
+        <p class="muted">
+          Awards are fetched from
+          <a href="https://op.drachenwald.sca.org/awards" target="_blank" rel="noopener">op.drachenwald.sca.org</a>
+          on demand. When &ldquo;Verify names via OP search&rdquo; is enabled, the SCA and mundane names you
+          enter are sent to <a href="https://op.drachenwald.sca.org/search" target="_blank" rel="noopener">op.drachenwald.sca.org/search</a>
+          to confirm spelling. Disable the toggle to keep names off the network entirely. Drafts are stored
+          locally on this device only.
+        </p>
+      </details>
+      <details>
+        <summary>Privacy</summary>
+        <p class="muted">
+          GDPR notice: this extension does not transmit recipient names, mundane names, or any draft text
+          to any server. The only outbound network requests are (1) when you click "Refresh awards list"
+          (public award list from op.drachenwald.sca.org), and (2) when you click "Insert into form",
+          which writes directly into the form fields on the page you have open. Drafts are kept in
+          <code>chrome.storage.local</code> until you clear them.
+        </p>
+      </details>
+    </footer>
+
+    <template id="entry-template">
+      <article class="entry">
+        <header class="entry-head">
+          <span class="entry-num"></span>
+          <button class="move-up" title="Move up">&uarr;</button>
+          <button class="move-down" title="Move down">&darr;</button>
+          <button class="remove danger" title="Remove">&times;</button>
+        </header>
+        <div class="grid">
+          <label>SCA name
+            <span class="name-row">
+              <input type="text" data-field="sca" autocomplete="off" />
+              <span class="verify-badge" data-badge="sca" title="Click Verify to check this name" aria-live="polite"></span>
+            </span>
+          </label>
+          <label>Mundane name <span class="muted">(optional)</span>
+            <span class="name-row">
+              <input type="text" data-field="mundane" autocomplete="off" />
+              <span class="verify-badge" data-badge="mundane" title="Click Verify to check this name" aria-live="polite"></span>
+            </span>
+          </label>
+          <label class="full">Award
+            <input type="text" data-field="award" list="awards-list" autocomplete="off" />
+          </label>
+          <fieldset class="full">
+            <legend>Scroll</legend>
+            <select data-field="scrollStatus">
+              <option value="">(blank)</option>
+              <option value="Scroll given">Scroll given</option>
+              <option value="No Scroll">No Scroll</option>
+              <option value="Promissory">Promissory</option>
+            </select>
+            <input type="text" data-field="scrollBy" placeholder="Scroll made by (optional)" autocomplete="off" />
+          </fieldset>
+          <fieldset class="full">
+            <legend>Token</legend>
+            <select data-field="tokenStatus">
+              <option value="">(blank)</option>
+              <option value="token given">Token given</option>
+              <option value="no token">No token</option>
+              <option value="token by">Token by</option>
+            </select>
+            <input type="text" data-field="tokenBy" placeholder="Token made by (optional)" autocomplete="off" />
+          </fieldset>
+        </div>
+        <p class="entry-preview muted"></p>
+        <div class="verify-row">
+          <button class="verify-btn" type="button" title="Verify both names via op.drachenwald.sca.org/search">Verify names</button>
+          <span class="verify-summary" data-badge="match" aria-live="polite"></span>
+        </div>
+      </article>
+    </template>
+
+    <datalist id="awards-list"></datalist>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

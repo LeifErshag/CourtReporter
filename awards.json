@@ -1,0 +1,30 @@
+{
+  "_comment": "Starter list of common Drachenwald awards. Use the 'Refresh awards list' button in the extension to fetch the current list from https://op.drachenwald.sca.org/awards.",
+  "fetchedAt": null,
+  "awards": [
+    "Award of Arms (AoA)",
+    "Grant of Arms (GoA)",
+    "Patent of Arms",
+    "Court Barony",
+    "Order of the Pelican",
+    "Order of the Laurel",
+    "Order of Chivalry (Knight)",
+    "Order of Chivalry (Master at Arms)",
+    "Order of Defence",
+    "Order of the Rose",
+    "Order of the Panache",
+    "Order of the Lindquistring",
+    "Order of the Silver Guard",
+    "Order of the Sigil of Drachenwald",
+    "Order of the Argent Tyger",
+    "Order of the Crwth",
+    "Order of the Golden Lily of the Lakes",
+    "Order of the Albatross",
+    "Order of the Nordlys",
+    "Award of the Coronet's Favour",
+    "Queen's Order of Courtesy",
+    "King's Cypher",
+    "Queen's Cypher",
+    "Augmentation of Arms"
+  ]
+}

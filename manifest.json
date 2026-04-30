@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Drachenwald Court Reporter",
+  "version": "0.1.0",
+  "description": "Helps royals and heralds fill out the Drachenwald Court Report form. All data stays local; nothing is transmitted except the values you insert into the form.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://docs.google.com/forms/*",
+    "https://op.drachenwald.sca.org/*"
+  ],
+  "action": {
+    "default_title": "Drachenwald Court Reporter",
+    "default_popup": "popup.html"
+  }
+}
