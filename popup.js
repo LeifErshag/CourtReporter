@@ -35,6 +35,23 @@ const blankState = () => ({
 let state = blankState();
 let awards = [];
 
+// Native window.confirm() is unreliable in extension popups (Chrome closes the
+// popup or shows a partial dialog). Use a <dialog>-based replacement.
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    const dlg = document.getElementById("confirm-dialog");
+    document.getElementById("confirm-message").textContent = message;
+    if (!dlg) { resolve(true); return; }
+    const onClose = () => {
+      dlg.removeEventListener("close", onClose);
+      resolve(dlg.returnValue === "ok");
+    };
+    dlg.addEventListener("close", onClose);
+    if (typeof dlg.showModal === "function") dlg.showModal();
+    else dlg.setAttribute("open", "");
+  });
+}
+
 // ---------- Format ----------
 
 function formatEntry(e) {
@@ -243,10 +260,11 @@ async function verifyEntry(idx, node) {
     return;
   }
   if (!settings.verifyNames) {
-    if (!confirm(
+    const ok = await confirmDialog(
       "Name verification will send the names you entered to op.drachenwald.sca.org/search. " +
       "Enable this feature for the rest of this session?"
-    )) return;
+    );
+    if (!ok) return;
     settings.verifyNames = true;
     $("#verify-names").checked = true;
     saveSettings();
@@ -483,7 +501,7 @@ async function init() {
   });
 
   $("#clear-draft").addEventListener("click", async () => {
-    if (!confirm("Discard the current draft on this device?")) return;
+    if (!(await confirmDialog("Discard the current draft on this device?"))) return;
     state = blankState();
     await chrome.storage.local.remove(STORAGE_KEY);
     activateTab("report");
