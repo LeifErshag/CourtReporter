@@ -301,20 +301,19 @@ function containsName(text, name) {
 }
 
 async function opSearch(query) {
-  // The OP search page accepts a query string. We try `?q=` first and fall
-  // back to `?query=` and `?name=` if the response looks empty.
-  const variants = ["q", "query", "name"];
-  let lastHtml = null;
-  for (const param of variants) {
-    const url = `${OP_SEARCH_URL}?${param}=${encodeURIComponent(query)}`;
-    const res = await fetch(url, { credentials: "omit" });
-    if (!res.ok) continue;
-    const html = await res.text();
-    lastHtml = html;
-    const records = parseSearchResults(html, query);
-    if (records.length > 0) return { records, url };
-  }
-  return { records: lastHtml ? parseSearchResults(lastHtml, query) : [], url: null };
+  // The OP search form posts `persona=<name>` to /search as
+  // application/x-www-form-urlencoded and the server renders the matching
+  // records into the response HTML.
+  const body = "persona=" + encodeURIComponent(query);
+  const res = await fetch(OP_SEARCH_URL, {
+    method: "POST",
+    credentials: "omit",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body
+  });
+  if (!res.ok) return { records: [], url: OP_SEARCH_URL };
+  const html = await res.text();
+  return { records: parseSearchResults(html, query), url: OP_SEARCH_URL };
 }
 
 function parseSearchResults(html, query) {

@@ -49,8 +49,9 @@ or any other personal data anywhere. Specifically:
   spelling manually.
 - **"Verify names via OP search"** is an opt-in toggle (off by default). When
   it is enabled and you click the per-entry **Verify names** button, the SCA
-  name and mundane name for that entry are sent as query parameters to
-  `https://op.drachenwald.sca.org/search` in order to confirm spelling. The
+  name and mundane name for that entry are POSTed (as `persona=<name>` form
+  data) to `https://op.drachenwald.sca.org/search` in order to confirm
+  spelling. The
   result is shown as small badges next to each field ("SCA Name Found",
   "Modern Name Found") and, if both names appear together in a single OP
   record, a combined "✓✓ The results for SCA and modern name matches"
