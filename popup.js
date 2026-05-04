@@ -239,7 +239,16 @@ function renderVerification(node, v) {
   }
   if (v.match === true) {
     sumB.className = "verify-summary ok";
-    sumB.textContent = "✓✓ The results for SCA and modern name matches";
+    sumB.textContent = "✓✓ SCA and modern name match on OP";
+  } else if (v.match === false && v.matchReason === "not_on_file") {
+    sumB.className = "verify-summary warn";
+    sumB.textContent = "Modern name not on file — link unverified";
+  } else if (v.match === false && v.matchReason === "mundane_not_found") {
+    sumB.className = "verify-summary no";
+    sumB.textContent = "Modern name on file but not found via direct search";
+  } else if (v.match === false && v.matchReason === "awards_differ") {
+    sumB.className = "verify-summary no";
+    sumB.textContent = "Award lists differ — may be different people";
   } else if (v.sca && v.sca.found && v.mundane && v.mundane.found && v.match === false) {
     sumB.className = "verify-summary no";
     sumB.textContent = "Names found but no shared record on OP";
@@ -329,20 +338,46 @@ async function verifyEntry(idx, node) {
         checked: true,
         found: scaRes.records.some((r) => containsName(r, sca)),
         records: scaRes.records,
-        suggestions: scaRes.suggestions || []
+        suggestions: scaRes.suggestions || [],
+        modernNameStatus: scaRes.modernNameStatus || null,
+        pageAwards: scaRes.pageAwards || []
       } : null,
       mundane: munRes ? {
         checked: true,
         found: munRes.records.some((r) => containsName(r, mundane)),
         records: munRes.records,
-        suggestions: munRes.suggestions || []
+        suggestions: munRes.suggestions || [],
+        pageAwards: munRes.pageAwards || []
       } : null
     };
     if (sca && mundane && scaRes && munRes) {
-      // True if any record from either search contains BOTH the SCA name and
-      // the modern name in the same row/snippet — indicates same person.
-      const all = [...scaRes.records, ...munRes.records];
-      v.match = all.some((r) => containsName(r, sca) && containsName(r, mundane));
+      const status = scaRes.modernNameStatus;
+      if (status === "not_on_file") {
+        // The SCA persona page explicitly says the modern name is not on file.
+        // Any hit on the mundane-name search cannot be attributed to this
+        // persona, so the link cannot be verified.
+        v.match = false;
+        v.matchReason = "not_on_file";
+      } else if (status === "on_file") {
+        // Modern name is recorded — the mundane search must also find a hit,
+        // and the award lists from both pages must be identical.
+        const munFound = munRes.records.some((r) => containsName(r, mundane));
+        if (!munFound) {
+          v.match = false;
+          v.matchReason = "mundane_not_found";
+        } else {
+          const scaAwards = [...(scaRes.pageAwards || [])].sort();
+          const munAwards = [...(munRes.pageAwards || [])].sort();
+          const canCompare = scaAwards.length > 0 || munAwards.length > 0;
+          const awardsMatch = !canCompare || JSON.stringify(scaAwards) === JSON.stringify(munAwards);
+          v.match = awardsMatch;
+          if (!awardsMatch) v.matchReason = "awards_differ";
+        }
+      } else {
+        // Unknown modern-name status — fall back to cross-text matching.
+        const all = [...scaRes.records, ...munRes.records];
+        v.match = all.some((r) => containsName(r, sca) && containsName(r, mundane));
+      }
     }
     entry._verify = v;
   } catch (err) {
@@ -410,15 +445,17 @@ async function opPostSearch(body, query) {
         );
       } catch { /* ignore */ }
     }
+    let personaInfo = {};
     try {
       const doc = new DOMParser().parseFromString(html, "text/html");
+      personaInfo = parsePersonaPageInfo(doc);
       const main = doc.querySelector("#content") || doc.body;
       if (main) {
         const text = (main.textContent || "").replace(/\s+/g, " ").trim();
         if (text) records.push(text);
       }
     } catch { /* ignore parse errors */ }
-    return { records, suggestions: [], url: finalUrl };
+    return { records, suggestions: [], url: finalUrl, ...personaInfo };
   }
   const suggestions = parseSuggestions(html);
   const records = parseSearchResults(html, query);
@@ -465,6 +502,61 @@ function parseSearchResults(html, query) {
     out.push(t);
   }
   return out;
+}
+
+function parsePersonaPageInfo(doc) {
+  // Extract modern name status and award list from a persona profile page.
+  let modernNameStatus = null;
+  let modernNameFromPage = null;
+
+  // Preferred: definition list pattern <dt>Modern name</dt><dd>…</dd>
+  for (const dt of doc.querySelectorAll("dt")) {
+    if (!/modern\s*name/i.test(dt.textContent)) continue;
+    const dd = dt.nextElementSibling;
+    if (!dd || dd.tagName !== "DD") break;
+    const val = dd.textContent.trim();
+    if (/not\s+on\s+file/i.test(val)) {
+      modernNameStatus = "not_on_file";
+    } else if (val) {
+      modernNameStatus = "on_file";
+      modernNameFromPage = val;
+    }
+    break;
+  }
+
+  // Fallback: scan full content text for "Modern name: …" pattern
+  if (!modernNameStatus) {
+    const contentText = ((doc.querySelector("#content") || doc.body)?.textContent || "")
+      .replace(/\s+/g, " ");
+    if (/modern\s*name[^a-z]*not\s+on\s+file/i.test(contentText)) {
+      modernNameStatus = "not_on_file";
+    } else {
+      const m = /modern\s*name\s*[:\-]?\s*([^\n\r,;]{2,80})/i.exec(contentText);
+      if (m) {
+        const val = m[1].trim();
+        if (!/not\s+on\s+file/i.test(val)) {
+          modernNameStatus = "on_file";
+          modernNameFromPage = val;
+        }
+      }
+    }
+  }
+
+  // Extract award names listed on the page
+  const seen = new Set();
+  const pageAwards = [];
+  for (const el of doc.querySelectorAll("td, li, a")) {
+    const t = (el.textContent || "").trim().replace(/\s+/g, " ");
+    if (!t || t.length < 3 || t.length > 150) continue;
+    if (seen.has(t)) continue;
+    if (/^(order|award|grant|patent|court|augmentation|queen'?s|king'?s|companion)\b/i.test(t)
+      || /(cypher|of arms|drachenwald|favou?r)\b/i.test(t)) {
+      seen.add(t);
+      pageAwards.push(t);
+    }
+  }
+
+  return { modernNameStatus, modernNameFromPage, pageAwards };
 }
 
 function updateOutput() {
