@@ -155,6 +155,27 @@ fieldset legend { font-size: 11px; color: var(--muted); padding: 0 4px; }
 .verify-summary.ok { color: #1f5a1f; font-weight: 600; }
 .verify-summary.no { color: #7a1f1f; }
 
+.suggestions { margin-top: 6px; }
+.suggestions-label {
+  margin: 4px 0 4px;
+  font-size: 11px;
+}
+.suggestion-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.suggestion {
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--card);
+  text-align: left;
+}
+.suggestion:hover { background: #f4eeda; }
+
 .inline-check {
   display: inline-flex;
   align-items: center;

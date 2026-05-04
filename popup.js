@@ -138,6 +138,7 @@ function renderEntries() {
 
   entries.forEach((entry, idx) => {
     const node = tpl.content.firstElementChild.cloneNode(true);
+    node.dataset.entryIdx = String(idx);
     $(".entry-num", node).textContent = `#${idx + 1}`;
 
     for (const field of Object.keys(entry)) {
@@ -215,7 +216,11 @@ function renderVerification(node, v) {
   setBadge(munB, "", "");
   sumB.className = "verify-summary";
   sumB.textContent = "";
+  renderSuggestions(node, "sca", null);
+  renderSuggestions(node, "mundane", null);
   if (!v) return;
+  renderSuggestions(node, "sca", v.sca && !v.sca.found ? v.sca.suggestions : null);
+  renderSuggestions(node, "mundane", v.mundane && !v.mundane.found ? v.mundane.suggestions : null);
   if (v.loading) {
     setBadge(scaB, "loading", "…", "Searching OP…");
     setBadge(munB, "loading", "…", "Searching OP…");
@@ -250,6 +255,50 @@ function renderVerification(node, v) {
   }
 }
 
+function renderSuggestions(node, side, suggestions) {
+  const box = node.querySelector(`[data-suggestions="${side}"]`);
+  if (!box) return;
+  box.innerHTML = "";
+  if (!suggestions || suggestions.length === 0) {
+    box.hidden = true;
+    return;
+  }
+  box.hidden = false;
+  const label = document.createElement("p");
+  label.className = "muted suggestions-label";
+  label.textContent = side === "sca"
+    ? "Several SCA names match — pick the correct person:"
+    : "Several modern names match — pick the correct person:";
+  box.appendChild(label);
+  const list = document.createElement("div");
+  list.className = "suggestion-list";
+  for (const s of suggestions) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "suggestion";
+    btn.textContent = s.alt ? `${s.name} (${s.alt})` : s.name;
+    btn.title = "Use this name";
+    btn.addEventListener("click", () => pickSuggestion(node, side, s));
+    list.appendChild(btn);
+  }
+  box.appendChild(list);
+}
+
+function pickSuggestion(node, side, suggestion) {
+  const idx = parseInt(node.dataset.entryIdx, 10);
+  const entries = state[state.activeTab];
+  if (!entries[idx]) return;
+  if (side === "sca") entries[idx].sca = suggestion.name;
+  else entries[idx].mundane = suggestion.name;
+  entries[idx]._verify = null;
+  renderEntries();
+  updateOutput();
+  saveState();
+  // Re-verify with the chosen name so the user gets immediate confirmation.
+  const newNode = $("#entries").children[idx];
+  if (newNode) verifyEntry(idx, newNode);
+}
+
 async function verifyEntry(idx, node) {
   const entry = state[state.activeTab][idx];
   if (!entry) return;
@@ -279,8 +328,18 @@ async function verifyEntry(idx, node) {
       mundane ? opMundaneSearch(mundane) : Promise.resolve(null)
     ]);
     const v = {
-      sca: scaRes ? { checked: true, found: scaRes.records.some((r) => containsName(r, sca)), records: scaRes.records } : null,
-      mundane: munRes ? { checked: true, found: munRes.records.some((r) => containsName(r, mundane)), records: munRes.records } : null
+      sca: scaRes ? {
+        checked: true,
+        found: scaRes.records.some((r) => containsName(r, sca)),
+        records: scaRes.records,
+        suggestions: scaRes.suggestions || []
+      } : null,
+      mundane: munRes ? {
+        checked: true,
+        found: munRes.records.some((r) => containsName(r, mundane)),
+        records: munRes.records,
+        suggestions: munRes.suggestions || []
+      } : null
     };
     if (sca && mundane && scaRes && munRes) {
       // True if any record from either search contains BOTH the SCA name and
@@ -331,7 +390,7 @@ async function opPostSearch(body, query) {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body
   });
-  if (!res.ok) return { records: [], url: OP_SEARCH_URL };
+  if (!res.ok) return { records: [], suggestions: [], url: OP_SEARCH_URL };
   const finalUrl = res.url || OP_SEARCH_URL;
   const personaMatch = /\/persona\/([^?#]+)/.exec(finalUrl);
   if (personaMatch) {
@@ -339,16 +398,41 @@ async function opPostSearch(body, query) {
     try { name = decodeURIComponent(name); } catch { /* keep raw */ }
     // Include the original query so containsName() matches even if the
     // server's canonical persona name differs in casing or punctuation.
-    return { records: [name, query], url: finalUrl };
+    return { records: [name, query], suggestions: [], url: finalUrl };
   }
   const html = await res.text();
+  const suggestions = parseSuggestions(html);
   const records = parseSearchResults(html, query);
   // A unique match redirects to /person/<surname>/<forename>; treat that as a
   // confirmed hit even if our snippet parser missed it on the profile page.
   if (res.redirected && /\/person\//.test(res.url) && records.length === 0) {
     records.push(query + " — " + decodeURIComponent(res.url));
   }
-  return { records, url: res.url || OP_SEARCH_URL };
+  return { records, suggestions, url: res.url || OP_SEARCH_URL };
+}
+
+// When the query matches more than one persona, OP returns a "Several names
+// match your query" disambiguation page with /persona/<name> links inside
+// .list-group-item entries. Extract those so the user can pick.
+function parseSuggestions(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const out = [];
+  const seen = new Set();
+  const links = doc.querySelectorAll('a.list-group-item[href^="/persona/"], a.list-group-item-action[href^="/persona/"]');
+  for (const a of links) {
+    const href = a.getAttribute("href") || "";
+    const m = /\/persona\/([^?#]+)/.exec(href);
+    if (!m) continue;
+    let canonical = m[1];
+    try { canonical = decodeURIComponent(canonical); } catch { /* keep raw */ }
+    const primary = (a.querySelector("span")?.textContent || canonical).trim();
+    const alt = (a.querySelector("small")?.textContent || "").trim();
+    const key = primary + "|" + alt;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ name: primary, alt, href });
+  }
+  return out;
 }
 
 function parseSearchResults(html, query) {
