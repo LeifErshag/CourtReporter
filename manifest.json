@@ -10,7 +10,7 @@
   ],
   "host_permissions": [
     "https://docs.google.com/forms/*",
-    "https://op.drachenwald.sca.org/*"
+    "*://op.drachenwald.sca.org/*"
   ],
   "action": {
     "default_title": "Drachenwald Court Reporter",
