@@ -276,7 +276,7 @@ async function verifyEntry(idx, node) {
   try {
     const [scaRes, munRes] = await Promise.all([
       sca ? opSearch(sca) : Promise.resolve(null),
-      mundane ? opSearch(mundane) : Promise.resolve(null)
+      mundane ? opMundaneSearch(mundane) : Promise.resolve(null)
     ]);
     const v = {
       sca: scaRes ? { checked: true, found: scaRes.records.some((r) => containsName(r, sca)), records: scaRes.records } : null,
@@ -308,6 +308,23 @@ async function opSearch(query) {
   // /persona/<name> — which fetch follows transparently, leaving us on the
   // detail page. Detect that case via res.url and treat it as a hit.
   const body = "persona=" + encodeURIComponent(query);
+  return opPostSearch(body, query);
+}
+
+async function opMundaneSearch(name) {
+  // Mundane (modern/legal) names are not indexed by the persona field; OP's
+  // advanced search uses `forename=<X>&surname=<Y>`. Split on the last
+  // whitespace: everything before is forename, the last token is surname.
+  const parts = name.trim().split(/\s+/);
+  if (parts.length < 2) return opSearch(name);
+  const surname = parts.pop();
+  const forename = parts.join(" ");
+  const body = "forename=" + encodeURIComponent(forename)
+    + "&surname=" + encodeURIComponent(surname);
+  return opPostSearch(body, name);
+}
+
+async function opPostSearch(body, query) {
   const res = await fetch(OP_SEARCH_URL, {
     method: "POST",
     credentials: "omit",
@@ -325,7 +342,13 @@ async function opSearch(query) {
     return { records: [name, query], url: finalUrl };
   }
   const html = await res.text();
-  return { records: parseSearchResults(html, query), url: OP_SEARCH_URL };
+  const records = parseSearchResults(html, query);
+  // A unique match redirects to /person/<surname>/<forename>; treat that as a
+  // confirmed hit even if our snippet parser missed it on the profile page.
+  if (res.redirected && /\/person\//.test(res.url) && records.length === 0) {
+    records.push(query + " — " + decodeURIComponent(res.url));
+  }
+  return { records, url: res.url || OP_SEARCH_URL };
 }
 
 function parseSearchResults(html, query) {
