@@ -1,7 +1,4 @@
 // Drachenwald Court Reporter — popup logic.
-// Privacy: nothing in this file transmits user-entered data. The only network
-// fetch is the explicit "Refresh awards list" button, which hits the public
-// awards page on op.drachenwald.sca.org.
 
 const STORAGE_KEY = "courtReporter.draft.v1";
 const AWARDS_KEY = "courtReporter.awards.v1";

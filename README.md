@@ -101,6 +101,5 @@ The extension requests these Chrome permissions:
 - The awards list parser uses a heuristic against the OP page's HTML; if the
   OP page is restructured, the heuristic may need tuning. The bundled fallback
   list will continue to work.
-- No icons are bundled; Chrome will use a default placeholder. Drop PNGs at
-  `icons/16.png`, `icons/48.png`, `icons/128.png` and register them in the
-  manifest if you want a custom icon.
+- Icons are in `icons/` (16, 48, 128 px). To replace them, drop new PNGs at
+  the same paths and reload the extension.
