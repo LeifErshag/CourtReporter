@@ -392,23 +392,40 @@ async function opPostSearch(body, query) {
   });
   if (!res.ok) return { records: [], suggestions: [], url: OP_SEARCH_URL };
   const finalUrl = res.url || OP_SEARCH_URL;
-  const personaMatch = /\/persona\/([^?#]+)/.exec(finalUrl);
-  if (personaMatch) {
-    let name = personaMatch[1];
-    try { name = decodeURIComponent(name); } catch { /* keep raw */ }
-    // Include the original query so containsName() matches even if the
-    // server's canonical persona name differs in casing or punctuation.
-    return { records: [name, query], suggestions: [], url: finalUrl };
-  }
   const html = await res.text();
+  const personaMatch = /\/persona\/([^?#]+)/.exec(finalUrl);
+  const personMatch = /\/person\/([^?#]+)\/([^?#]+)/.exec(finalUrl);
+  if (personaMatch || personMatch) {
+    // Server redirected straight to a single profile page. Include the URL-
+    // derived name, the original query (in case server canonicalises casing/
+    // punctuation), and the full rendered page text so cross-name matching
+    // (SCA ↔ modern) can detect that both names appear on the same profile —
+    // e.g. the persona page lists "Modern name: <X>" in its body.
+    const records = [query];
+    if (personaMatch) {
+      try { records.push(decodeURIComponent(personaMatch[1])); }
+      catch { records.push(personaMatch[1]); }
+    }
+    if (personMatch) {
+      try {
+        records.push(
+          decodeURIComponent(personMatch[2]) + " " + decodeURIComponent(personMatch[1])
+        );
+      } catch { /* ignore */ }
+    }
+    try {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      const main = doc.querySelector("#content") || doc.body;
+      if (main) {
+        const text = (main.textContent || "").replace(/\s+/g, " ").trim();
+        if (text) records.push(text);
+      }
+    } catch { /* ignore parse errors */ }
+    return { records, suggestions: [], url: finalUrl };
+  }
   const suggestions = parseSuggestions(html);
   const records = parseSearchResults(html, query);
-  // A unique match redirects to /person/<surname>/<forename>; treat that as a
-  // confirmed hit even if our snippet parser missed it on the profile page.
-  if (res.redirected && /\/person\//.test(res.url) && records.length === 0) {
-    records.push(query + " — " + decodeURIComponent(res.url));
-  }
-  return { records, suggestions, url: res.url || OP_SEARCH_URL };
+  return { records, suggestions, url: finalUrl };
 }
 
 // When the query matches more than one persona, OP returns a "Several names
