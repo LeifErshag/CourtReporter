@@ -301,7 +301,12 @@ function containsName(text, name) {
 }
 
 async function opSearch(query) {
-  // Basic OP search posts `persona=<name>` for SCA personas.
+  // The OP search form posts `persona=<name>` to /search as
+  // application/x-www-form-urlencoded and the server renders the matching
+  // records into the response HTML. When the query is an exact persona
+  // match, the server skips the results page and 302-redirects directly to
+  // /persona/<name> — which fetch follows transparently, leaving us on the
+  // detail page. Detect that case via res.url and treat it as a hit.
   const body = "persona=" + encodeURIComponent(query);
   return opPostSearch(body, query);
 }
@@ -327,6 +332,15 @@ async function opPostSearch(body, query) {
     body
   });
   if (!res.ok) return { records: [], url: OP_SEARCH_URL };
+  const finalUrl = res.url || OP_SEARCH_URL;
+  const personaMatch = /\/persona\/([^?#]+)/.exec(finalUrl);
+  if (personaMatch) {
+    let name = personaMatch[1];
+    try { name = decodeURIComponent(name); } catch { /* keep raw */ }
+    // Include the original query so containsName() matches even if the
+    // server's canonical persona name differs in casing or punctuation.
+    return { records: [name, query], url: finalUrl };
+  }
   const html = await res.text();
   const records = parseSearchResults(html, query);
   // A unique match redirects to /person/<surname>/<forename>; treat that as a
