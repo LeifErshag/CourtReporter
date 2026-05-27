@@ -1,0 +1,36 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v0.1.0)"
+        required: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build zip
+        run: |
+          zip -r court-reporter-${{ github.event.inputs.version }}.zip \
+            manifest.json popup.html popup.css popup.js awards.json icons/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: "Drachenwald Court Reporter ${{ github.event.inputs.version }}"
+          body: |
+            ## Install
+
+            1. Download `court-reporter-${{ github.event.inputs.version }}.zip` and unzip it.
+            2. Open `chrome://extensions`, enable **Developer mode**.
+            3. Click **Load unpacked** and select the unzipped folder.
+          files: court-reporter-${{ github.event.inputs.version }}.zip
+          draft: false
+          prerelease: false
